@@ -1,0 +1,686 @@
+---
+title: "Projekt u R-u"
+author: "Iva Rengel, Matea Bušić, Marta Bandur, Karla Budimir"
+date: "ak. g. 2024./25."
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+documentclass: article
+subtitle: Statistička analiza podataka
+fontsize: 12pt
+header-includes:
+- \usepackage{titling}
+- \pretitle{\begin{center}\huge\bfseries}
+- \posttitle{\end{center}}
+- \preauthor{\begin{center}\large}
+- \postauthor{\end{center}}
+- \predate{\begin{center}\large}
+- \postdate{\end{center}}
+- \setlength{\parindent}{20pt}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Uvod
+
+## Opis problema i cilj projekta
+
+\indent Dva glavna pristupa u marketingu za koje se poduzeća opredjeljuju jesu masovne marketinške kampanje i ciljani marketing. Za razliku od masovnih marketinških kampanja koje su usmjerene na široku publiku, ciljani je marketing usmjeren na specifičnu skupinu potrošača.
+
+U datoteci \texttt{data.csv} dan nam je skup podataka o jednoj ciljanoj telefonskoj marketinškoj kampanji koju je provela jedna banka. Među dostupnim varijablama nalaze se neki osnovni sociodemografski podaci o klijentu, podaci o odnosu i kontaktu klijenta s bankom, te podaci o uspješnosti provedene ciljane marketinške kampanje.
+
+Cilj je našeg projekta statističkom analizom podataka odgovoriti na četiri istraživačka pitanja:
+
+\begin{itemize}
+  \item Postoji li zavisnost između zanimanja i bračnog statusa klijenta?
+  \item Imaju li klijenti s otvorenim kreditom više novca na računu od ostalih klijenata?
+  \item Postoji li razlika trajanja poziva marketinške kampanje među klijentima različitog stupnja obrazovanja?
+  \item Mogu li dostupne varijable predvidjeti uspješnost marketinške kampanje?
+\end{itemize}
+
+
+# Opis skupa podataka
+
+Učitajmo skup podataka \texttt{data.csv} u R i sažmimo ga.
+
+```{r ucitavanje}
+data <- read.csv("/Users/Home/Desktop/SAP projekt/data.csv")
+summary(data)
+```
+
+# Istraživačka pitanja
+
+## Nezavisnost zaposlenja i bračnog statusa
+
+Promatrane značajke zaposlenja i bračnog statusa obje su kategoričke varijable, 
+gdje zaposlenje ima 12 kategorija:
+\begin{itemize}
+  \item admin
+  \item blue-collar
+  \item enterprenour
+  \item housemaid
+  \item managment
+  \item retired
+  \item self-employed
+  \item services
+  \item student
+  \item technician
+  \item unemployed
+  \item unknown
+\end{itemize}
+
+a bračni status sljedeće tri kategorije:
+\begin{itemize}
+  \item single
+  \item married
+  \item divorced
+\end{itemize}
+
+Pogled na raspodijelu unutar kategorija vidljiv je na sljedećim grafovima:
+
+```{r raspodjela po kategorijama}
+library(ggplot2)
+ggplot(data, aes(job)) +
+     geom_bar(fill = "#0073C2FF")
+     
+ggplot(data, aes(marital_status)) +
+     geom_bar(fill = "#0073C2FF")
+```
+
+Za pogled na zavisnosti među varijablama koristiti ćemo Chi kvadratni test 
+nezavisnosti kategoričkih varijabli.
+
+$H_0$: Valijable bračni status i zaposlenje su nezavisne
+$H_1$: Postoji zavisnost među varijablama bračni status i zaposlenje
+
+Provest ćemo test sljedećom funkcijom:
+```{r chi squared test}
+test <- chisq.test(table(data$job, data$marital_status))
+test
+```
+S obzirom da je $p$-vrijednost manja od početno definirane alfe ($p$-vrijednost 
+$p=2.2e-16 > 0.05=\alpha$), 
+odbacujemo $H_0$ u korist $H_1$, te zbog izrazito male $p$-vrijednosti 
+podosta smo sigurni u ovu odluku.
+Odbacijemo pretpostavku da su varijable nezavisne, iz čega proizlazi da su zavisne.
+No test nam sam po sebi ne daje uvid u to na koji način jedna varijabla ovisi
+o drugoj.
+
+```{r reziduali}
+test$stdres
+```
+
+Dobiveni rezuduali pružaju nam dublji uvid u zavisnost pojedinih kategorija varijabli.
+Najznačajnije zavisnosti Uočavamo kod studenata, koji su u puno većem omjeru "single" u 
+usporedbi s ostalim zaposlenjima, što je obrnut slučaj za umirovljene osobe. Umirovljenici
+su također u prosjeku češće rastavljeni, dok su "blue-collar" radnici češće oženjeni negoli 
+nekog drugog bračnog statusa.
+
+```{r reziduali graf}
+
+contingency_table <- table(data$job, data$marital_status)
+mosaic_data <- as.data.frame(as.table(contingency_table))
+ggplot(mosaic_data, aes(x = Var1, y = Freq, fill = Var2)) +
+  geom_bar(stat = "identity", position = "fill") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "Job", fill = "Marital Status", y = "Frequency")
+```
+  
+
+
+## Imaju li klijenti s otvorenim kreditom više novca na računu od ostalih klijenata?
+
+Kako bismo provjerili imaju li klijenti s otvorenim kreditom više novaca od 
+ostalih klijenata, najprije moramo razdvojiti stanja računa klijenata s 
+otvorenim kreditom od onih bez kredita te proučiti kako se ponašaju vrijednosti.
+
+Među varijablama imamo dvije vrste kredita stambeni i nenamijenski, za svaki 
+od njih napravit ćemo zasebnu analizu.
+
+
+```{r distribucija}
+balance_with_housing_loan <- data$balance[data$housing_loan == "yes"]
+balance_with_personal_loan <- data$balance[data$personal_loan == "yes"]
+balance_without_loan <- data$balance[data$housing_loan == "no"
+                                     & data$personal_loan == "no"]
+#stambeni
+mean_with_h <- mean(balance_with_housing_loan, na.rm = TRUE)
+mean_with_h
+#nenamijenski
+mean_with_p <- mean(balance_with_personal_loan, na.rm = TRUE)
+mean_with_p
+#ostali
+mean_without <- mean(balance_without_loan, na.rm = TRUE)
+mean_without
+
+```
+
+```{r Boxplot stambeni}
+boxplot(balance_with_housing_loan, balance_without_loan, 
+        names = c('Klijenti sa stambenim kreditom',
+                  'Ostali'),
+        main='Boxplot stanja računa klijenata sa stambenim
+        kreditom u usporedbi s ostalima')
+```
+
+```{r Boxplot nenamijenski}
+boxplot(balance_with_personal_loan, balance_without_loan, 
+        names = c('Klijenti s nenamijenskim kreditom',
+                  'Ostali'),
+        main='Boxplot stanja računa klijenata s nenamijenskim kreditom
+        u usporedbi s ostalima')
+```
+Nema indikacija da klijenti s otvorenim kreditom imaju više novca na računu 
+od ostalih klijenata.
+
+Kako bismo odgovorili na pitanje imaju li klijenti s otvorenim kreditom više 
+novaca na računu od ostalih klijenata, trebamo usporediti prosječne vrijednosti 
+dviju grupa; klijenata s otvorenim kreditom i ostalim klijentima.
+
+Ispitivanje ćemo provesti t-testom, no prije toga moramo provjeriti jesu li 
+zadovoljene pretpostavke nezavisnosti i normalne distribucije.
+
+Kako bismo mogli utvrditi jesu li podaci normalno distribuirani koristimo 
+histograme, Q-Q plotove te testove.
+
+```{r provjera normalnosti}
+hist(balance_with_housing_loan,main='Klijenti s otvorenim stambenim kreditom', 
+     xlab='Prosječni godišnji saldo, u eurima', ylab='Frekvencija')
+hist(balance_with_personal_loan,
+     main='Klijenti s otvorenim nenamijenskim kreditom', 
+     xlab='Prosječni godišnji saldo, u eurima', ylab='Frekvencija')
+hist(balance_without_loan,main='Ostali klijenti', 
+     xlab='Prosječni godišnji saldo, u eurima', ylab='Frekvencija')
+
+qqnorm(balance_with_housing_loan, main = "Q-Q Plot - Sa stambenim kreditom")
+qqline(balance_with_housing_loan, col = "red")
+qqnorm(balance_with_personal_loan, 
+       main = "Q-Q Plot - S nenamijenskim kreditom")
+qqline(balance_with_personal_loan, col = "red")
+qqnorm(balance_without_loan, main = "Q-Q Plot - Ostali")
+qqline(balance_without_loan, col = "red")
+```
+Iz grafova se vizualno može očitati jesu li podaci normalno distribuirani ili
+ne. U slučaju histograma, podaci su normalno distribuirani ako je graf 
+simetričan i zvonolikog oblika. Na našim histogramima se jasno može vidjeti 
+kako podaci nisu normalno distribuirani jer graf nije niti simetričan niti 
+zvonolikog oblika.
+Osim histograma, za provjeru normalne distribucije koristimo i Q-Q plot. 
+S Q-Q plota također možemo vrlo jendostavno isčitati jesu li podaci normalno
+distribuirani; što točke više prate crvenu liniju, podaci su bliži normalnoj 
+razdiobi.
+S istrtanih Q-Q plotova također vidimo da podaci ne prate u potpunosti 
+normalnu razdiobu zbog točaka na desnom kraju koje su dosta udaljene od pravca.
+
+Možemo zaključiti da podaci o stanju računa klijenata s stambenim ili 
+nenamijenskim kreditom te onima bez istoga imaju sličnu distribuciju koja je 
+zbog stršećih vrijednosti udaljena od normalne.
+
+Kako bismo to popravili i približili se normalnoj distribuciji, pokušat ćemo 
+srezat podatke odozgo i odozdo za 10%.
+
+```{r trim}
+trim_data <- function(data, column, lower_percentile = 0.1,
+                      upper_percentile = 0.9) {
+  lower_bound <- quantile(data[[column]], lower_percentile, na.rm = TRUE)
+  upper_bound <- quantile(data[[column]], upper_percentile, na.rm = TRUE)
+
+  trimmed_data <- data[data[[column]] >= lower_bound & data[[column]] 
+                       <= upper_bound, ]
+  
+  return(trimmed_data)
+}
+
+trimmed_data <- trim_data(data, "balance", 0.10, 0.90)
+balance_with_housing_loan <- trimmed_data$balance[
+                                  trimmed_data$housing_loan == "yes"]
+balance_without_loan <- trimmed_data$balance[trimmed_data$housing_loan == "no" 
+                                          & trimmed_data$personal_loan == "no"]
+balance_with_personal_loan <- trimmed_data$balance[
+                            trimmed_data$personal_loan == "yes"]
+
+```
+
+```{r }
+boxplot(balance_with_housing_loan, balance_without_loan, 
+        names = c('Klijenti sa stambenim kreditom',
+                  'Ostali'),
+        main='Boxplot stanja računa klijenata sa stambenim kreditom
+        u usporedbi s ostalima')
+```
+```{r}
+boxplot(balance_with_personal_loan, balance_without_loan, 
+        names = c('Klijenti s nenamijenskim kreditom',
+                  'Ostali'),
+        main='Boxplot stanja računa klijenata s nenamijenskim kreditom
+        u usporedbi s ostalima')
+```
+Iz grafova možemo vdijeti da su stršeće vrijendosti i dalje prisutne,
+kako bismo olakšali daljnju analizu i podatke približili normalnoj distribuciji,
+transformirat ćemo ih Box-Cox transformacijom.
+```{r boxcox transformacija}
+#s obzirom da među našim podacima ima i negativnih vrijednosti, prvo ćemo 
+# apsolutno vrijednost najmanjeg broja dodati na cijeli skup balance kako bismo
+#mogli primijeniti Box-Cox transformaciju koja se može primijeniti isključivo
+#na pozitivne brojeve
+library(MASS)
+min_val <- abs(min(trimmed_data$balance, na.rm = TRUE)) + 1
+trimmed_data$balance <- trimmed_data$balance + min_val
+boxcox_with_housing <- boxcox(lm(trimmed_data$balance ~ 1), 
+                              lambda = seq(-2, 2, 0.1), 
+                              plotit = TRUE)
+optimal_lambda_with_housing <- 
+  boxcox_with_housing$x[which.max(boxcox_with_housing$y)]
+
+if (optimal_lambda_with_housing == 0) {
+  trimmed_data$balance_boxcox <- log(trimmed_data$balance)
+} else {
+  trimmed_data$balance_boxcox <- 
+    ((trimmed_data$balance)^optimal_lambda_with_housing - 1) / 
+    optimal_lambda_with_housing
+}
+balance_with_housing_loan_boxcox <- 
+  trimmed_data$balance_boxcox[trimmed_data$housing_loan == "yes"]
+balance_without_loan_boxcox <- 
+  trimmed_data$balance_boxcox[trimmed_data$housing_loan == "no" & 
+                                trimmed_data$personal_loan == "no"]
+balance_with_personal_loan_boxcox <- 
+  trimmed_data$balance_boxcox[trimmed_data$personal_loan == "yes"]
+
+```
+
+```{r housing transormirani}
+qqnorm(balance_with_housing_loan_boxcox,
+       main = "[Box-Cox] Q-Q Plot - Sa stambenim kreditom")
+qqline(balance_with_housing_loan_boxcox, col = "red")
+hist(balance_with_housing_loan_boxcox, 
+     main = "[Box-Cox] Distribucija - Sa stambenim kreditom ", 
+     xlab = "Prosječni godišnji saldo, u eurima")
+
+ks_test_with_personal_loan <- ks.test(
+  jitter(balance_with_housing_loan_boxcox), 
+  "pnorm", 
+  mean = mean(balance_with_housing_loan_boxcox, na.rm = TRUE), 
+  sd = sd(balance_with_housing_loan_boxcox, na.rm = TRUE)
+)
+
+print(ks_test_with_personal_loan)
+```
+
+```{r personal transformirani}
+qqnorm(balance_with_personal_loan_boxcox, 
+       main = "[Box-Cox] Q-Q Plot - S nenamijenskim kreditom")
+qqline(balance_with_personal_loan_boxcox, col = "red")
+hist(balance_with_personal_loan_boxcox, 
+     main = "[Box-Cox] Distribucija - S nenamijenskim kreditom ", 
+     xlab = "Prosječni godišnji saldo, u eurima")
+ks_test_with_personal_loan <- ks.test(
+  jitter(balance_with_personal_loan_boxcox), 
+  "pnorm", 
+  mean = mean(balance_with_personal_loan_boxcox, na.rm = TRUE), 
+  sd = sd(balance_with_personal_loan_boxcox, na.rm = TRUE)
+)
+print(ks_test_with_personal_loan)
+```
+
+
+```{r Ostali transformirano}
+qqnorm(balance_without_loan_boxcox, main = "[Box-Cox] Q-Q Plot - Ostali")
+qqline(balance_without_loan_boxcox, col = "red")
+
+hist(balance_without_loan_boxcox, main = "[Box-Cox] Distribucija - Ostali", 
+     xlab = "Prosječni godišnji saldo, u eurima")
+
+# KS test
+ks_test_without_loans <- ks.test(
+  jitter(balance_without_loan_boxcox), 
+  "pnorm", 
+  mean = mean(balance_without_loan_boxcox, na.rm = TRUE), 
+  sd = sd(balance_without_loan_boxcox, na.rm = TRUE)
+)
+
+print(ks_test_without_loans)
+
+
+
+```
+
+Nakon provedenih transformacija možemo jasno uočiti promjene na grafovima, 
+uspješno smo približili podatke normalnoj distribuciji. Zbog i dalje postojanih 
+stršećih vrijednosti, krajevi grafova su udaljeni od pravca, no većina točaka se
+ipak nalazi na pravcu koji ukazuje na normalnu distribuciju. KS test izračunava
+p-vrijednost manju od 0.05 zbog koje bismo trebali odbaciti hipotezu $H_0$ u 
+korist hipoteze $H_1$ odnosno trebali bismo odbaciti hipotezu da su podaci 
+normalno distribuirani.
+Iako KS test ne pokazuje normalnu distribucij, iz grafova možemo zaključiti da 
+smo unatoč velikom broju stršećih vrijednosti, uspjeli podatke približiti 
+normalnoj distribuciji.
+S obzirom na to da je t-test dosta robusan, primijenit ćemo ga nad našim 
+podacima unatoč tome što nisu savršeno normalno distribuirani. 
+Uzimajući u obzir da su klijenti nezavisni jedni od drugih, pretpostavljamo 
+da vrijedi nezavisnost među podacima. 
+
+Nakon što smo potvrdili početne pretpostavke možemo nastaviti s analizom.
+
+Prije provedbe samog t-testa moramo provjeriti jednakost varijanci.
+
+```{r F-test}
+# F-test za usporedbu varijanci
+var.test(balance_with_housing_loan_boxcox, balance_without_loan_boxcox)
+var.test(balance_with_personal_loan_boxcox, balance_without_loan_boxcox)
+```
+S obzirom na to da varijance nisu jednake u nijednom od dva slučaja 
+(p je jako mali), primijenit ćemo t-test za podatke s različitim varijancama 
+(Welchov t-test).
+
+Napravit ćemo dva odvojena testa, prvo ćemo postaviti hipoteze za stambeni 
+kredit.
+$H_0$:Klijenti s otvorenim stambenim kreditom nemaju više novca na računu u 
+odnosu na ostale klijente.
+$H_1$:Klijenti s otvorenim stambenim kreditom imaju više novca na računu u 
+odnosu na ostale klijente.
+
+```{r T-test stambeni}
+# Provedba Welchovog t-testa (jednostrani test: Sa kreditom > Bez kredita)
+t_test_result <- t.test(balance_with_housing_loan_boxcox, 
+                        balance_without_loan_boxcox, 
+                        alternative = "greater", 
+                        var.equal = FALSE)        
+
+print(t_test_result)
+
+```
+A zatim i za nenamijenski kredit:
+
+$H_0$:Klijenti s otvorenim nenamijenskim kreditom nemaju više novca na računu
+u odnosu na ostale klijente.
+$H_1$:Klijenti s otvorenim nenamijenskim kreditom imaju više novca na računu 
+u odnosu na ostale klijente.
+
+```{r T-test nenamijenski}
+t_test_result <- t.test(balance_with_personal_loan_boxcox, 
+                        balance_without_loan_boxcox, 
+                        alternative = "greater", 
+                        var.equal = FALSE)        
+
+print(t_test_result)
+```
+S obzirom da je p-vrijednost u oba slučaja veća od 0.05, ne možemo odbaciti 
+nul-hipotezu $H_0$ u koristi hipoteze $H_1$. 
+Zaključujemo da klijenti s otvorenim kreditom (stambenim ili nenamijenskim) 
+nemaju više novaca na računu od ostalih klijenata.
+
+## Razlika trajanja poziva među klijentima različite razine obrazovanja
+
+Vizualizirajmo razine obrazovanja i pripadna trajanja poziva.
+
+```{r trajanja, fig.height=6}
+boxplot(last_contact_duration~education,
+        data=data,
+        boxwex = 0.8,
+        xlab="razina obrazovanja",
+        ylab="trajanje posljednjeg poziva (s)")
+```
+
+Pokušajmo prvo odgovoriti na istraživačko pitanje **ANOVA** testom o jednakosti 
+prosjeka trajanja među razinama obrazovanja.
+
+Prva pretpostavka ANOVA-e je da reziduali dolaze iz normalne distribucije.
+
+```{r normalnost, fig.height=5}
+# prvo trebamo izračunati reziduale - pomoću aov
+anova_model <- aov(last_contact_duration ~ education,
+                   data = data)
+reziduali_prije <- residuals(anova_model)
+
+qqnorm(reziduali_prije)
+qqline(reziduali_prije)
+```
+
+Q-Q vizualizacija služi za vizualnu "provjeru" normalnosti skupa podataka. Što 
+točke bliže "prate" nacrtanu dužinu, to normalna distribucija bolje opisuje dani
+skup podataka. Na Q-Q plotu reziduala vidimo  izrazito odstupanje, posebice na 
+rubovima dužine. To sugerira da reziduali nisu normalno distribuirani te da na 
+njima ne možemo provesti ANOVA test.
+
+Pokušajmo na transformiranim podacima.
+
+```{r boxcox, fig.height=5}
+library(MASS)
+
+# Provest ćemo Box-Cox transformaciju, koja zahtijeva
+# da su podaci pozitivni. U našem skupu podataka ima
+# mnogo poziva duljine 0, pa ćemo cijeli skup
+# podataka pomaknuti.
+data$last_contact_duration_p1 <- data$last_contact_duration + 1
+
+# Provedimo Box-Cox transformaciju da bismo
+# smanjili varijancu
+# (https://encyclopediaofmath.org/wiki/Box-Cox_transformation)
+boxcox_result <- boxcox(aov(last_contact_duration_p1
+                            ~ education,
+                            data = data),
+                        lambda = seq(-2, 2, by = 0.1))
+
+lambda_opt <- boxcox_result$x[which.max(boxcox_result$y)]
+
+if (lambda_opt == 0) {
+  data$boxcox_last_contact_duration <-
+    log(data$last_contact_duration_p1)
+} else {
+  data$boxcox_last_contact_duration <-
+    (data$last_contact_duration_p1^lambda_opt - 1) / lambda_opt
+}
+
+# Izračunajmo reziduale za transformirane podatke
+anova_model_boxcox <- aov(boxcox_last_contact_duration
+                          ~ education,
+                          data = data)
+reziduali_boxcox <- residuals(anova_model_boxcox)
+
+# Pogledajmo ih na Q-Q plotu
+qqnorm(reziduali_boxcox)
+qqline(reziduali_boxcox)
+
+hist(reziduali_boxcox)
+
+# residuals - fitted values plot
+# anova model predviđa vrijednosti
+# https://www.geeksforgeeks.org/how-to-extract-the-residuals-and-predicted-values-from-linear-model-in-r/
+plot(fitted(anova_model_boxcox), residuals(anova_model_boxcox), 
+     xlab = "Predviđene vrijednosti", 
+     ylab = "Reziduali", 
+     main = "Reziduali i predviđene vrijednosti")
+abline(h = 0, col = "red", lty = 2)
+```
+
+Iz gornjih vizualizacija donosimo odluku da su dovoljno zadovoljene pretpostavke
+ANOVA testa, koji sad provodimo.
+
+```{r anova}
+summary(anova_model_boxcox)
+```
+
+Zato što je $p$-vrijednost $p=0.0821 > 0.05=\alpha$, na razini značajnosti 
+$\alpha=0.05$ zaključujemo da iz podataka **ne uočavamo statistički značajnu razliku u \underline{prosječnom} trajanju poziva klijentima različitih stupnjeva obrazovanja**.
+
+Ipak, možda nas radi unaprjeđenja usluga više zanima razlikuju li se **medijani** 
+duljina trajanja poziva po skupinama. Primjerice, u redu nam je imati neke klijente
+koji svojim duljim pozivima povećavaju prosjek svoje skupine, ali voljeli bismo 
+robusniju mjeru toga razgovaramo li s čitavom skupinom dulje nego s ostalima.
+
+Iz tog razloga provest ćemo i neparametarski **Kruskal-Wallisov test** s 
+12. predavanja. 
+Jedini uvjet za taj test koji nam različite razine obrazovanja moraju zadovoljavati 
+jest da za svaku razinu obrazovanja postoji 5 ili više klijenata te razine 
+obrazovanja. To je zadovoljeno:
+
+```{r frekvencije}
+tablica_frekv <- as.data.frame(table(data$education))
+colnames(tablica_frekv) <- c("razina obrazovanja",
+                             "broj klijenata")
+print(tablica_frekv)
+```
+
+Provedimo dakle test; nulta hipoteza $H_0$ je da se \underline{medijani} 
+trajanja poziva **ne** razlikuju među grupama klijenata različitih razina 
+obrazovanja.
+
+```{r kruskalwallis}
+kruskal_test <- kruskal.test(last_contact_duration ~ education,
+                             data = data)
+print(kruskal_test)
+```
+
+Uočimo da je dobivena p-vrijednost $p=0.009614$, pa (jer $p<0.05$) na razini 
+značajnosti $\alpha$=0.05 **odbacujemo** hipotezu $H_0$ u korist alternativne 
+hipoteze, te zaključujemo da
+**postoji statistički značajna razlika u \underline{medijanima} duljina poziva 
+s klijentima različitih razina obrazovanja**.
+
+Dakle, možemo zaključiti da, ovisno o načinu na koji postavimo pitanje, 
+dobivamo različite odgovore. U *prosjeku*, izgleda da podaci ne pokazuju da se 
+skupine određene razinama obrazovanja razlikuju po trajanjima poziva. Ipak, 
+nismo detaljnije provjeravali pretpostavke ANOVA testa, pa je moguće da nam 
+neparametarski Kruskal-Wallisov test daje bolji odgovor. Svakako možemo 
+zaključiti da među trajanjima poziva klijentima različitih razina obrazovanja 
+ipak postoji razlika, makar ne bila u prosjeku.
+
+## Predviđanje uspješnosti $\color{red}{?}$
+
+Želimo saznati mogu li dostupne varijable predvidjeti uspješnost marketinške 
+kampanje. Želimo dobiti VJEROJATNOST je li klijent uplatio oročeni depozit tj. 
+je li aktualna kampanja uspješna. Ciljna binarna varijabla je 
+term_deposit_accepted. S obzirom da želimo vjerojatnost, ne možemo koristiti 
+linearnu regresiju jer kod nje regresori mogu poprimiti vrijednosti i izvan 
+[0,1] što onda nije vjerojatnost. Zato ćemo na pitanje pokušati odgovoriti 
+pomoću logističke regresije. Osim toga, to je logičan izbor jer se radi o 
+klasifikaciji.
+
+Logistička regresija radi procjenu na principu maksimalne izglednosti.
+
+Za razliku od linearne regresije, normalnost reziduala nije pretpostavka 
+logističke regresije. Njezine pretpostavke su nezavisnost opažanja što je 
+zadovoljeno i da nema visoke koreliranosti među regresorima. To ćemo kasnije, 
+nakon izgeneriranog summaryja modela, provjeriti VIF testom.
+
+Sad ćemo pogledati imamo li NA vrijednosti i koliko ih je unknown tj. 
+nepoznatih. To nam otežava analizu, ali može donijeti i nove informacije. 
+Na primjer, pogledajmo koliko se puta pojavljuje 0 po varijablama/stupcima.
+
+```{r}
+data <- read.csv("/Users/Home/Desktop/SAP projekt/data.csv")
+colSums(data == 0)
+```
+
+Vidimo da se u previous_contacts_count 0 pojavljuje 36954 puta. 
+Toliko klijenata (primjera) uopće nisu zvali prije ove kampanje. 
+Pogledajmo sad NA i unknown.
+
+```{r}
+print("Broj NA u datasetu:")
+sum(!complete.cases(data))
+```
+
+```{r}
+print("Po stupcima unknown se pojavljuje ovoliko puta:")
+sapply(data, function(x) sum(x == "unknown"))
+```
+
+Vidimo da se unknown pojavljuje u više od 80% slučajeva kod varijable 
+previous_campaign_outcome. To bi moglo biti problematično. Međutim, ako klijent 
+dosad nije bio uključen u kampanju i ovo mu je prvi put, to bi mogla biti bitna 
+informacija za model. previous_campaign_outcome još može poprimiti vrijednosti 
+other, failure i success. Varijablama job i education također ne znamo određen 
+broj vrijednost, ali to je u odnosu na ukupan broj primjera zanemarivo 
+(izbacivanje ili imputacija medijanom).
+
+Prvo ćemo ostaviti sve varijable kako su i bile i provesti logističku regresiju 
+nad cijelim datasetom. Za početak ćemo chr varijable pretvoriti u factor jer to 
+zahtijeva naš model. Numeričke varijable mogu ostati numeričke.
+
+```{r}
+data$job= factor(data$job, levels = c('unknown','unemployed','retired','admin.'
+  ,'management','technician','entrepreneur','blue-collar','housemaid','student'
+  ,'services','self-employed'),labels = c(0,1,2,3,4,5,6,7,8,9,10,11))
+data$marital_status = factor(data$marital_status, levels = c('married', 
+  'divorced', 'single'), labels = c(1,2,3))
+data$education = factor(data$education, levels = c('unknown','primary',
+  'secondary', 'tertiary'), labels = c(0,1,2,3))
+data$default = factor(data$default, levels = c('no','yes'), labels = c(0,1))
+data$housing_loan=factor(data$housing_loan,levels=c('no','yes'),labels=c(0,1))
+data$personal_loan=factor(data$personal_loan,levels=c('no','yes'),labels=c(0,1))
+data$contact = factor(data$contact, levels = c('unknown','telephone',
+  'cellular'), labels = c(0,1,2))
+data$last_contact_month = factor(data$last_contact_month, levels = 
+  c('jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'), 
+labels = c(1,2,3,4,5,6,7,8,9,10,11,12))
+data$previous_campaign_outcome = factor(data$previous_campaign_outcome, 
+levels = c('unknown','other','failure','success'), labels = c(0,1,2,3))
+data$term_deposit_accepted = factor(data$term_deposit_accepted, levels = 
+  c('no','yes'), labels = c(0,1))
+
+```
+
+Sad možemo provesti logističku regresiju.
+
+```{r}
+logistic <- glm(term_deposit_accepted ~ ., data = data, family = binomial)
+summary(logistic)
+
+require(caret)
+
+Rsq = 1 - logistic$deviance/logistic$null.deviance
+Rsq
+```
+
+Koliko je model dobar govori nam residual deviance. Model je bolji što je ta 
+vrijednost manja. Postoji i AIC gdje također tražimo što manju vrijednost. 
+Još jedna provjera je i matrica zabune.
+
+Uz \( R_i^2 \), koeficijent determinacije iz pomoćne regresije prediktora 
+\( X_i \) na ostale prediktore, Variance Inflation Factor (VIF) definiran 
+je kao:
+
+$$
+VIF_i = \frac{1}{1 - R_i^2}.
+$$
+
+Variance Inflation Factor mjeri koliko višekolinearnost među prediktorima 
+povećava varijancu procijenjenih koeficijenata. 
+
+```{r}
+library(car)
+vif_values <- vif(logistic)
+print(vif_values)
+```
+Prema VIF testu zaključujemo da višekolinearnost nije problem jer su sve 
+vrijednosti GVIF^(1/(2*Df)) manje od 2.
+
+
+
+Sad ćemo pokušati dobiti bolje modele i bolju predikciju ciljne varijable tako 
+što ćemo usporediti različite modele logističke regresije. 
+
+
+```{r}
+model_single <- glm(term_deposit_accepted ~ last_contact_duration, 
+                    family = binomial, data = data)
+
+
+model_reduced <- glm(term_deposit_accepted ~ last_contact_duration + 
+                    housing_loan + personal_loan + 
+                    contact + last_contact_month + previous_campaign_outcome, 
+                    family = binomial, data = data)
+
+model_full <- glm(term_deposit_accepted ~ ., family = binomial, data = data)
+```
+Za usporedbu će nam pomoći anova
+```{r}
+anova(model_single, model_reduced, model_full, test = "Chisq")
+```
+Nismo uspjeli dobiti bolji model, no model sa svim varijablama je statistički 
+značajan uz p-vrijednost 0.05.
