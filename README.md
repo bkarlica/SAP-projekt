@@ -13,7 +13,7 @@ Analiziran je skup podataka o jednoj ciljanoj telefonskoj marketinškoj kampanji
 
 * [`data.csv`](data.csv) – skup podataka
 * [`opis_varijabli`](opis_varijabli.xlsx) – opis varijabli
-* [`Statisticka_analiza-podataka_projekt`](Statisticka_analiza-podataka_projekt.Rmd) - R kod projekta
+* [`Statisticka_analiza_podataka_projekt`](Statisticka_analiza_podataka_projekt.Rmd) - R kod projekta
 * [`Statisticka_analiza_podataka_projekt.pdf`](Statisticka_analiza_podataka_projekt.pdf) – izvještaj s cjelokupnom analizom, grafovima i zaključcima
 
 ## Tehnologije
