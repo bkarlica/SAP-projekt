@@ -11,22 +11,15 @@ Analiziran je skup podataka o jednoj ciljanoj telefonskoj marketinškoj kampanji
 
 ## Sadržaj
 
-* `data.csv` – skup podataka
-* `opis_varijabli` – opis varijabli
-* R kôd projekta (`Statisticka_analiza-podataka_projekt`)
-* `Statisticka_analiza_podataka_projekt.pdf` – izvještaj s cjelokupnom analizom, grafovima i zaključcima
+* [`data.csv`](data.csv) – skup podataka
+* [`opis_varijabli`](opis_varijabli.xlsx) – opis varijabli
+* R kod projekta [`Statisticka_analiza-podataka_projekt`](Statisticka_analiza-podataka_projekt)
+* [`Statisticka_analiza_podataka_projekt.pdf`](Statisticka_analiza_podataka_projekt.pdf) – izvještaj s cjelokupnom analizom, grafovima i zaključcima
 
 ## Tehnologije
 
 R, ggplot2, MASS (Box-Cox transformacija), car (VIF), caret
 
-## Pokretanje
-
-U R kôdu postavi putanju do datoteke `data.csv` (npr. `read.csv("data.csv")` ako je kôd u istoj mapi), a potrebne pakete instaliraj naredbom:
-
-```r
-install.packages(c("ggplot2", "MASS", "car", "caret"))
-```
 
 ## Autorice
 
